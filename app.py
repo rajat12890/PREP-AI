@@ -112,8 +112,8 @@ if 'essay_topic' not in st.session_state:
     st.session_state.essay_topic = ""
 if 'coding_problems' not in st.session_state:
     st.session_state.coding_problems = []
-if 'mode' not in st.session_state: # Added for practice mode
-    st.session_state.mode = "dashboard" # Can be "dashboard", "test", "practice", "practice_questions", "results"
+if 'mode' not in st.session_state:
+    st.session_state.mode = "dashboard" # Can be "dashboard", "test", "practice", "practice_questions", "results", "practice_results_review"
 
 # Test configurations
 TEST_CONFIGS = {
@@ -175,12 +175,12 @@ def initialize_groq_client():
             return None
     return None
 
-def generate_questions(test_type, topic, count=5, difficulty="Medium"): # Added difficulty parameter
+def generate_questions(test_type, topic, count=5, difficulty="Medium"):
     """Generate practice questions using Groq"""
     llm = initialize_groq_client()
     if not llm:
         st.warning(f"Using sample questions for {test_type} - {topic} ({difficulty}). Groq API key is missing or invalid.")
-        return create_sample_questions(test_type, topic, count, difficulty) # Pass difficulty to fallback
+        return create_sample_questions(test_type, topic, count, difficulty)
 
     # Update prompt templates to include difficulty
     if test_type == "English Usage Test":
@@ -248,7 +248,7 @@ def generate_questions(test_type, topic, count=5, difficulty="Medium"): # Added 
         return []
 
     prompt = PromptTemplate(
-        input_variables=["topic", "count", "difficulty"], # Added difficulty
+        input_variables=["topic", "count", "difficulty"],
         template=prompt_template
     )
 
@@ -294,7 +294,7 @@ def generate_questions(test_type, topic, count=5, difficulty="Medium"): # Added 
         print(f"DEBUG: Groq API call failed: {e}")
         return create_sample_questions(test_type, topic, count, difficulty)
 
-def create_sample_questions(test_type, topic, count, difficulty="Medium"): # Added difficulty parameter
+def create_sample_questions(test_type, topic, count, difficulty="Medium"):
     """Create sample questions as fallback if AI generation fails or API key is missing.
     Ensures that 'count' questions are returned, even if by repeating existing samples."""
     all_sample_q = []
@@ -366,16 +366,15 @@ def create_sample_questions(test_type, topic, count, difficulty="Medium"): # Add
                 {"question": "Which sorting algorithm has a worst-case time complexity of O(n log n) and is a comparison sort?", "options": ["A) Quick Sort", "B) Merge Sort", "C) Heap Sort", "D) Both B and C"], "correct_answer": "D", "explanation": "Both Merge Sort and Heap Sort guarantee O(n log n) worst-case time complexity, whereas Quick Sort's worst-case is O(n^2)."},
                 {"question": "Which data structure is suitable for implementing a symbol table where operations like search, insert, and delete are frequently performed?", "options": ["A) Array", "B) Linked List", "C) Hash Table or Balanced Binary Search Tree", "D) Queue"], "correct_answer": "C", "explanation": "Hash tables offer average O(1) time for these operations. Balanced BSTs (like AVL trees or Red-Black trees) offer O(log n) worst-case time, both making them suitable."},
             ]
-    
+
     # Ensure we return at least 'count' questions by repeating if necessary
-    if not all_sample_q: # Should not happen with current setup, but as a safeguard
+    if not all_sample_q:
         print(f"WARNING: No sample questions defined for {test_type} with difficulty {difficulty}. Returning empty list.")
         return []
 
     if len(all_sample_q) < count:
-        # Repeat samples to reach the desired count
         repeated_samples = (all_sample_q * ((count // len(all_sample_q)) + 1))[:count]
-        random.shuffle(repeated_samples) # Shuffle the repeated list
+        random.shuffle(repeated_samples)
         return repeated_samples
     else:
         return random.sample(all_sample_q, count)
@@ -405,7 +404,7 @@ def generate_essay_topic():
     try:
         chain = LLMChain(llm=llm, prompt=prompt)
         response = chain.run()
-        return response.strip().replace('"', '') # Remove potential quotes around the topic
+        return response.strip().replace('"', '')
     except Exception as e:
         st.error(f"Error generating essay topic: {str(e)}. Using a sample topic.")
         print(f"DEBUG: Groq API call failed for essay topic: {e}")
@@ -437,13 +436,13 @@ def generate_coding_problems():
                 "title": "Reverse a String",
                 "description": "Write a function that takes a string as input and returns the string reversed.",
                 "difficulty": "Easy",
-                "example": "Input: 'hello'\nOutput: 'olleh'"
+                "example": "Input: 'hello'\\nOutput: 'olleh'"
             }},
             {{
                 "title": "Find Largest Element in Array",
                 "description": "Write a function that finds and returns the largest element in an array of integers.",
                 "difficulty": "Easy",
-                "example": "Input: [3, 1, 4, 1, 5, 9, 2, 6]\nOutput: 9"
+                "example": "Input: [3, 1, 4, 1, 5, 9, 2, 6]\\nOutput: 9"
             }}
         ]
         """
@@ -470,7 +469,7 @@ def generate_coding_problems():
                     return valid_problems
                 else:
                     st.warning("AI generated coding problems were malformed or empty after validation. Using sample problems.")
-                    return generate_coding_problems_fallback() # Use a distinct fallback
+                    return generate_coding_problems_fallback()
             else:
                 st.warning("AI response did not contain a valid JSON array for coding problems. Using sample problems.")
                 return generate_coding_problems_fallback()
@@ -516,11 +515,9 @@ def generate_coding_problems_fallback():
             "example": "Input: n = 4\nOutput: 24 (Because 4 * 3 * 2 * 1 = 24)"
         }
     ]
-    # Ensure exactly 2 problems are returned, picking randomly if more are available, or repeating if fewer.
     if len(sample_problems) >= 2:
         return random.sample(sample_problems, 2)
     else:
-        # If somehow fewer than 2 samples, repeat them
         return (sample_problems * 2)[:2]
 
 
@@ -531,16 +528,15 @@ def main():
     if not st.session_state.groq_api_key:
         st.info("Please enter your **Groq API key** to generate AI-powered questions and explanations. You can get one from [Groq Console](https://console.groq.com/keys).")
         api_key_input = st.text_input("Enter Groq API Key:", type="password", key="groq_api_key_input_widget")
-        
-        # Prioritize env variable, then widget input
+
         if os.getenv("GROQ_API_KEY"):
             st.session_state.groq_api_key = os.getenv("GROQ_API_KEY")
             st.success("API key loaded from environment variable!")
-            st.rerun() # Rerun to apply API key
+            st.rerun()
         elif api_key_input:
             st.session_state.groq_api_key = api_key_input
             st.success("API key saved from input field!")
-            st.rerun() # Rerun to apply API key
+            st.rerun()
         else:
             st.warning("You can use the app with sample questions, but AI-generated content requires an API key. Please add it to a `.env` file as `GROQ_API_KEY='your_key'` or enter it above.")
 
@@ -553,7 +549,7 @@ def main():
         st.rerun()
 
     if st.sidebar.button("💡 Practice Mode", key="practice_mode_btn"):
-        reset_session_state_for_dashboard() # Reset everything to start fresh for practice
+        reset_session_state_for_dashboard()
         st.session_state.mode = "practice"
         st.rerun()
 
@@ -564,12 +560,13 @@ def main():
         show_test_interface()
     elif st.session_state.mode == "practice":
         show_practice_mode()
-    elif st.session_state.mode == "practice_questions": # When actively doing practice questions
-        # This will be handled by show_practice_mode, which calls show_mcq_interface
-        # But we need to prevent dashboard from showing too
-        show_practice_mode()
+    elif st.session_state.mode == "practice_questions":
+        show_mcq_interface(is_practice_mode=True) # Now explicitly passes is_practice_mode
     elif st.session_state.mode == "results":
-        show_results() # Display results directly if redirected from a test completion
+        show_results()
+    elif st.session_state.mode == "practice_results_review": # New mode for detailed practice results
+        show_detailed_mcq_review(is_practice_mode=True)
+
 
 def reset_session_state_for_dashboard():
     """Resets all relevant session state variables to default for dashboard view."""
@@ -617,14 +614,14 @@ def show_dashboard():
     st.markdown("---")
     st.markdown("## 📚 Select a Test")
 
-    # NEW: Global Difficulty Selector for Dashboard Tests
+    # Global Difficulty Selector for Dashboard Tests
     difficulty_levels = ["Easy", "Medium", "Hard"]
     selected_difficulty_dashboard = st.selectbox("Select **Overall Test Difficulty**:", difficulty_levels, key="dashboard_difficulty_select")
 
     cols = st.columns(2)
     for i, (test_name, config) in enumerate(TEST_CONFIGS.items()):
         with cols[i % 2]:
-            with st.container(border=True): # Using border for better visual separation
+            with st.container(border=True):
                 st.markdown(f"""
                 <div class="test-card">
                     <h3>{config['icon']} {test_name}</h3>
@@ -634,7 +631,6 @@ def show_dashboard():
                 """, unsafe_allow_html=True)
 
                 if st.button(f"Start {test_name}", key=f"start_{test_name}"):
-                    # Reset questions, answers, etc., for a new test
                     st.session_state.questions = []
                     st.session_state.answers = []
                     st.session_state.current_question = 0
@@ -644,17 +640,14 @@ def show_dashboard():
 
                     st.session_state.current_test = test_name
                     st.session_state.test_start_time = datetime.now()
-                    st.session_state.mode = "test" # Set mode to test
+                    st.session_state.mode = "test"
 
                     with st.spinner(f"Generating {test_name} questions... This may take a moment."):
                         if test_name == "Written English Test":
-                            # Essay topic generation doesn't currently take difficulty, but could be extended
                             st.session_state.essay_topic = generate_essay_topic()
                         elif test_name == "Coding Test":
-                            # Coding problems could also be generated with difficulty in mind
                             st.session_state.coding_problems = generate_coding_problems()
                         else:
-                            # Generate questions for other tests using the selected dashboard difficulty
                             all_questions = []
                             questions_per_topic = config['question_count'] // len(config['topics'])
                             remaining_questions = config['question_count'] % len(config['topics'])
@@ -664,18 +657,17 @@ def show_dashboard():
                                 if remaining_questions > 0:
                                     q_count += 1
                                     remaining_questions -= 1
-                                # Pass selected_difficulty_dashboard here
                                 questions = generate_questions(test_name, topic, q_count, selected_difficulty_dashboard)
                                 all_questions.extend(questions)
 
-                            random.shuffle(all_questions) # Shuffle for variety
+                            random.shuffle(all_questions)
                             st.session_state.questions = all_questions[:config['question_count']]
                             if not st.session_state.questions:
                                 st.error(f"Failed to generate questions for {test_name}. Please check your API key or try again.")
-                                st.session_state.mode = "dashboard" # Go back if no questions
+                                st.session_state.mode = "dashboard"
                                 return
 
-                    st.rerun() # Only rerun once questions are generated/assigned
+                    st.rerun()
 
 def show_test_interface():
     """Show the test interface with a real-time updating timer."""
@@ -685,43 +677,32 @@ def show_test_interface():
     st.markdown(f"---")
     st.markdown(f"## {config['icon']} {test_name}")
 
-    # Timer display and logic
     if st.session_state.test_start_time:
-        timer_placeholder = st.empty() # Placeholder for the timer display
+        timer_placeholder = st.empty()
 
-        # IMPORTANT: This block will cause continuous reruns.
-        # It's inside a 'while True' loop to ensure constant updates.
-        # This means other interactions might be slightly delayed until the sleep finishes.
-        # For a timer, this is often the desired behavior.
-        while st.session_state.mode == "test": # Only run timer if in active test mode
+        while st.session_state.mode == "test":
             elapsed = datetime.now() - st.session_state.test_start_time
             remaining_seconds = int(timedelta(minutes=config['time_limit']).total_seconds() - elapsed.total_seconds())
-            
+
             if remaining_seconds <= 0:
                 timer_placeholder.markdown('<div class="timer">⏰ Time\'s up! Test completed.</div>', unsafe_allow_html=True)
                 st.error("Time's up! Your test has been automatically submitted.")
                 st.session_state.mode = "results"
-                st.rerun() # Rerun to go to results
-                return # Exit function after rerunning
+                st.rerun()
+                return
             
-            minutes, seconds = divmod(remaining_seconds, 60)
+            minutes, seconds = divV(remaining_seconds, 60)
             timer_placeholder.markdown(f'<div class="timer">⏱️ Time Remaining: {minutes:02d}:{seconds:02d}</div>', unsafe_allow_html=True)
-            
-            # This sleep and rerun is crucial for real-time timer updates
+
             time.sleep(1)
-            st.rerun() # Force rerun to update the timer
-        
-        # If the mode changed (e.g., to 'results' or 'dashboard' from within an MCQ/Essay/Coding submit button)
-        # then the while loop would have exited, and the rest of the script (main()) will handle the new mode.
-    
-    # Test-specific interfaces (these will only run once after a rerun,
-    # or if the timer is not active (e.g., in practice mode where timer isn't enforced this way))
-    if st.session_state.mode == "test": # Only display test content if still in test mode
+            st.rerun()
+
+    if st.session_state.mode == "test":
         if test_name == "Written English Test":
             show_essay_interface()
         elif test_name == "Coding Test":
             show_coding_interface()
-        else: # For MCQ-based tests (English, Analytical, Quantitative, Domain DSA)
+        else:
             show_mcq_interface()
 
 
@@ -744,29 +725,22 @@ def show_mcq_interface(is_practice_mode=False):
 
     if current_q_index >= total_questions:
         if is_practice_mode:
-            st.success("You've completed all questions in this practice session!")
-            if st.button("End Practice Session", key="end_practice_session"):
-                st.session_state.mode = "practice" # Go back to practice selection
-                reset_session_state_for_dashboard() # Clear questions/answers for next practice
-                st.rerun()
+            st.session_state.mode = "practice_results_review" # New mode for practice results
+            st.rerun()
             return
         else:
-            st.session_state.mode = "results" # Change mode to results for final test
+            st.session_state.mode = "results"
             st.rerun()
             return
 
     question_data = st.session_state.questions[current_q_index]
 
-    # Progress bar
     progress = (current_q_index + 1) / total_questions
     st.progress(progress)
     st.markdown(f"**Question {current_q_index + 1} of {total_questions}**")
 
-    # Question
     st.markdown(f'<div class="question-box"><h4>{question_data["question"]}</h4></div>', unsafe_allow_html=True)
 
-    # Options
-    # Generate unique keys for radio buttons for each question
     selected_option_value = None
     if f"mcq_q_{current_q_index}_{st.session_state.current_test}_radio" in st.session_state:
         selected_option_value = st.session_state[f"mcq_q_{current_q_index}_{st.session_state.current_test}_radio"]
@@ -777,54 +751,50 @@ def show_mcq_interface(is_practice_mode=False):
         key=f"mcq_q_{current_q_index}_{st.session_state.current_test}_radio",
         index=question_data["options"].index(selected_option_value) if selected_option_value in question_data["options"] else None
     )
-    
+
     col1, col2 = st.columns(2)
 
     with col1:
         if st.button("Submit Answer", key=f"submit_mcq_{current_q_index}_{st.session_state.current_test}"):
-            # Extract answer letter (A, B, C, D)
-            answer_letter = selected_option[0] if selected_option else None # Get the first char (A, B, C, D)
-            
-            # Find the full text of the user's selected option to store for results review
+            answer_letter = selected_option[0] if selected_option else None
             user_marked_option_text = selected_option if selected_option else "Not Answered"
-            
+
             if answer_letter is None:
                 st.warning("Please select an answer before submitting.")
             else:
                 correct = (answer_letter == question_data["correct_answer"])
-                
+
                 if correct:
                     st.session_state.score += 1
                     st.success("✅ Correct!")
                 else:
-                    st.error(f"❌ Incorrect. The correct answer is {question_data['correct_answer']}")
-                
-                st.info(f"**Explanation:** {question_data['explanation']}")
-                
+                    st.error(f"❌ Incorrect.")
+
                 # Store the answer for review, including the full text of the user's marked option
                 st.session_state.answers.append({
                     "question": question_data["question"],
-                    "user_answer_letter": answer_letter, # Storing the letter
-                    "user_answer_text": user_marked_option_text, # Storing the full text
+                    "options": question_data["options"], # Store all options for displaying context in review
+                    "user_answer_letter": answer_letter,
+                    "user_answer_text": user_marked_option_text,
                     "correct_answer_letter": question_data["correct_answer"],
-                    "correct_answer_text": next(opt for opt in question_data["options"] if opt.startswith(question_data["correct_answer"] + ")")), # Get full text of correct answer
+                    "correct_answer_text": next(opt for opt in question_data["options"] if opt.startswith(question_data["correct_answer"] + ")")),
                     "is_correct": correct,
                     "explanation": question_data["explanation"]
                 })
-                
-                time.sleep(1)  # Show feedback briefly before moving on
+
+                time.sleep(1)
                 st.session_state.current_question += 1
                 st.rerun()
 
     with col2:
         if st.button("Skip Question", key=f"skip_mcq_{current_q_index}_{st.session_state.current_test}"):
-            # Store skipped answer
             st.session_state.answers.append({
                 "question": question_data["question"],
+                "options": question_data["options"], # Store all options
                 "user_answer_letter": "Skipped",
                 "user_answer_text": "Skipped",
                 "correct_answer_letter": question_data["correct_answer"],
-                "correct_answer_text": next(opt for opt in question_data["options"] if opt.startswith(question_data["correct_answer"] + ")")), # Get full text of correct answer
+                "correct_answer_text": next(opt for opt in question_data["options"] if opt.startswith(question_data["correct_answer"] + ")")),
                 "is_correct": False,
                 "explanation": question_data["explanation"]
             })
@@ -852,19 +822,17 @@ def show_essay_interface():
         if word_count >= 120:
             st.success("✅ Essay submitted successfully! Review your score and feedback below.")
 
-            # Simple evaluation (can be enhanced with LLM grading)
-            score = min(100, (word_count / 120) * 80 + 20) # Base score + word count bonus
+            score = min(100, (word_count / 120) * 80 + 20)
             st.session_state.score = score
 
             st.session_state.answers.append({
                 "essay_topic": st.session_state.essay_topic,
                 "essay_text": essay_text,
                 "word_count": word_count,
-                "score_evaluated": score # Use a different key to avoid confusion with main score
+                "score_evaluated": score
             })
-            # This is important: set test_start_time to 0 or None to stop the timer
             st.session_state.test_start_time = None
-            st.session_state.mode = "results" # Change mode to results
+            st.session_state.mode = "results"
             st.rerun()
         else:
             st.error("❌ Essay must be at least 120 words long to submit.")
@@ -888,21 +856,16 @@ def show_coding_interface():
         st.markdown(f"---")
         st.markdown(f"#### Problem {i+1}: {problem['title']} ({problem['difficulty']})")
         st.markdown(f"**Description:** {problem['description']}")
-        st.code(problem['example'], language="text") # Use st.code for examples too
+        st.code(problem['example'], language="text")
 
-        # Use markdown for instructions
         st.markdown(f"**Your Solution (Problem {i+1}):**")
-        # Ensure a robust default value for text_area to prevent errors if answers is not yet populated
         current_solution = ""
-        # Check if previous solutions exist in session state. This is for persistent display.
-        # Note: For coding and essay, st.session_state.answers will typically have just one entry
-        # corresponding to the entire submission, not per question.
         if st.session_state.answers and len(st.session_state.answers) > 0 and \
            st.session_state.answers[0].get("type") == "coding_test" and \
            st.session_state.answers[0].get("problems_solved") and \
            i < len(st.session_state.answers[0]["problems_solved"]):
             current_solution = st.session_state.answers[0]["problems_solved"][i]["user_code"]
-        
+
         code = st.text_area(f"Write your code for '{problem['title']}' here:", height=200, key=f"code_{i}_{st.session_state.current_test}", value=current_solution)
 
         user_solutions.append({"problem_title": problem['title'], "user_code": code})
@@ -918,13 +881,54 @@ def show_coding_interface():
             st.success("✅ All coding solutions submitted! Review your score and feedback below.")
             st.info("💡 In a real test, your code would be run against hidden test cases for evaluation. For this simulation, a placeholder score is provided.")
 
-            # Placeholder score for coding test
-            st.session_state.score = 85 # You would replace this with actual evaluation logic (e.g., using an LLM to rate code quality, or running test cases in a backend)
+            st.session_state.score = 85
             st.session_state.answers = [{"type": "coding_test", "problems_solved": user_solutions}]
-            st.session_state.test_start_time = None # Stop the timer
-            st.session_state.mode = "results" # Change mode to results
+            st.session_state.test_start_time = None
+            st.session_state.mode = "results"
             st.rerun()
 
+def show_detailed_mcq_review(is_practice_mode=False):
+    """Displays detailed review for MCQ tests/practice sessions."""
+    if is_practice_mode:
+        st.markdown("---")
+        st.markdown("## 📝 Detailed Practice Review")
+    else:
+        st.markdown("---")
+        st.markdown("### 📝 Detailed Review")
+
+    if st.session_state.answers:
+        for i, answer_data in enumerate(st.session_state.answers):
+            st.markdown(f"**Q{i+1}:** {answer_data['question']}")
+
+            # Display user's answer
+            user_answer_display = answer_data['user_answer_text']
+            if answer_data.get("is_correct", False):
+                st.success(f"✅ Your Answer: {user_answer_display} (Correct)")
+            elif answer_data.get("user_answer_letter") == "Skipped":
+                st.warning(f"⏭️ You Skipped this question.")
+            else:
+                st.error(f"❌ Your Answer: {user_answer_display} (Incorrect)")
+
+            # Display correct answer
+            st.markdown(f"**Correct Answer:** {answer_data['correct_answer_text']}")
+            st.info(f"**Explanation:** {answer_data['explanation']}")
+            st.markdown("---")
+    else:
+        st.info("No questions were attempted in this session.")
+
+    if is_practice_mode:
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Start New Practice", key="start_new_practice_from_results"):
+                st.session_state.mode = "practice"
+                reset_session_state_for_dashboard()
+                st.rerun()
+        with col2:
+            if st.button("🏠 Back to Dashboard", key="back_to_dashboard_from_practice_results"):
+                reset_session_state_for_dashboard()
+                st.session_state.mode = "dashboard"
+                st.rerun()
+    # No action buttons for regular test review here, as they are handled by show_results()
 
 def show_results():
     """Show test results"""
@@ -935,11 +939,10 @@ def show_results():
     st.markdown(f"## 🎯 {test_name} Results")
 
     if test_name == "Written English Test":
-        # Extract the score from the answers list if it's there
         if st.session_state.answers and st.session_state.answers[0].get("score_evaluated") is not None:
             score = st.session_state.answers[0]["score_evaluated"]
         else:
-            score = 0 # Default if somehow not set
+            score = 0
         st.markdown(f'<div class="score-card"><h2>Score: {score:.1f}%</h2></div>', unsafe_allow_html=True)
 
         if score >= 80:
@@ -958,9 +961,8 @@ def show_results():
         else:
             st.info("No essay was submitted.")
 
-
     elif test_name == "Coding Test":
-        score = st.session_state.score # This is the placeholder score
+        score = st.session_state.score
         st.markdown(f'<div class="score-card"><h2>Score: {score:.1f}%</h2></div>', unsafe_allow_html=True)
 
         if score >= 80:
@@ -974,10 +976,9 @@ def show_results():
         if st.session_state.answers and st.session_state.answers[0].get("problems_solved"):
             for i, solved_problem in enumerate(st.session_state.answers[0]["problems_solved"]):
                 st.markdown(f"**Problem {i+1}:** {solved_problem['problem_title']}")
-                st.code(solved_problem['user_code'], language="python") # Assume Python for display
+                st.code(solved_problem['user_code'], language="python")
         else:
             st.info("No solutions were submitted or recorded.")
-
 
     else:
         # MCQ results
@@ -1006,33 +1007,18 @@ def show_results():
 
             st.markdown(f'<div class="score-card" style="background-color: {color}"><h3>Grade {grade}</h3><p>Performance</p></div>', unsafe_allow_html=True)
 
-        # Detailed answers
-        st.markdown("---")
-        st.markdown("### 📝 Detailed Review")
-        if st.session_state.answers:
-            for i, answer_data in enumerate(st.session_state.answers):
-                st.markdown(f"**Q{i+1}:** {answer_data['question']}")
-                if answer_data.get("is_correct", False):
-                    st.success(f"✅ Your Answer: {answer_data['user_answer_text']} (Correct)")
-                elif answer_data.get("user_answer_letter") == "Skipped":
-                    st.warning(f"⏭️ You Skipped this question. Correct Answer: {answer_data['correct_answer_text']}")
-                else:
-                    st.error(f"❌ Your Answer: {answer_data['user_answer_text']} (Incorrect)")
-                
-                st.markdown(f"**Correct Answer:** {answer_data['correct_answer_text']}")
-                st.info(f"**Explanation:** {answer_data['explanation']}")
-                st.markdown("---")
-        else:
-            st.info("No questions were attempted in this session.")
+        # Delegate detailed review to the new function
+        show_detailed_mcq_review(is_practice_mode=False) # Not practice mode here
 
-    # Save progress
-    st.session_state.progress_data.append({
-        "date": datetime.now().strftime("%Y-%m-%d"),
-        "test_type": test_name,
-        "score": st.session_state.score if test_name in ["Written English Test", "Coding Test"] else percentage
-    })
+    # Save progress (only for full tests, not practice reviews)
+    if st.session_state.mode == "results": # Ensure we only add to progress for completed tests
+        st.session_state.progress_data.append({
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "test_type": test_name,
+            "score": st.session_state.score if test_name in ["Written English Test", "Coding Test"] else percentage
+        })
 
-    # Action buttons
+    # Action buttons for full test results
     st.markdown("---")
     col1, col2 = st.columns(2)
     with col1:
@@ -1042,10 +1028,10 @@ def show_results():
             st.session_state.score = 0
             st.session_state.answers = []
             st.session_state.current_question = 0
-            st.session_state.questions = [] # Clear questions so they can be regenerated if needed
+            st.session_state.questions = []
             st.session_state.essay_topic = ""
             st.session_state.coding_problems = []
-            st.session_state.mode = "test" # Go back to test mode
+            st.session_state.mode = "test"
             st.rerun()
 
     with col2:
@@ -1060,50 +1046,44 @@ def show_practice_mode():
     st.markdown("## 🎯 Practice Mode")
     st.markdown("Practice specific topics without time pressure and get instant feedback.")
 
-    # Only show test types that have specific topics (i.e., not essay/coding)
     practice_test_types = {k: v for k, v in TEST_CONFIGS.items() if k not in ["Written English Test", "Coding Test"]}
-    
-    # If currently in practice_questions mode, don't show select boxes again
-    if st.session_state.mode != "practice_questions":
+
+    if st.session_state.mode == "practice": # Only show selection if not already in questions mode
         selected_test_type = st.selectbox("Select Test Type:", list(practice_test_types.keys()), key="practice_test_type_select")
 
         if selected_test_type:
             config = TEST_CONFIGS[selected_test_type]
-            
-            # Display available topics
+
             st.markdown(f"**Available Topics for {selected_test_type}:**")
             st.write(", ".join(config['topics']))
 
             selected_topic = st.selectbox("Select Topic to Practice:", config['topics'], key="practice_topic_select")
-            
-            # NEW: Difficulty Level Selector for Practice Mode
+
             difficulty_levels = ["Easy", "Medium", "Hard"]
             selected_difficulty_practice = st.selectbox("Select Difficulty Level:", difficulty_levels, key="practice_difficulty_select")
 
             num_questions = st.slider("Number of Questions:", 1, 10, 5, key="practice_num_questions_slider")
 
             if st.button("Start Practice Session", key="start_practice_session_btn"):
-                # Clear previous practice state before generating new questions
                 st.session_state.questions = []
                 st.session_state.answers = []
                 st.session_state.current_question = 0
-                st.session_state.score = 0 
-                st.session_state.current_test = selected_test_type # Needed for show_mcq_interface context
+                st.session_state.score = 0
+                st.session_state.current_test = selected_test_type
 
                 with st.spinner(f"Generating practice questions for {selected_topic} ({selected_difficulty_practice})..."):
-                    # Pass the selected_difficulty_practice to the generation function
                     st.session_state.questions = generate_questions(selected_test_type, selected_topic, num_questions, selected_difficulty_practice)
                     if not st.session_state.questions:
                         st.error("Could not generate practice questions. Please try a different topic or check your API key.")
-                        st.session_state.mode = "practice" # Stay in practice selection
-                        return # Do not rerun here; let the outer main loop handle this
-                
-                st.session_state.mode = "practice_questions" # A new mode for active practice
+                        st.session_state.mode = "practice"
+                        return
+
+                st.session_state.mode = "practice_questions"
                 st.rerun()
-    
-    # Only show MCQ interface if actually in practice_questions mode
-    if st.session_state.mode == "practice_questions":
+    elif st.session_state.mode == "practice_questions":
         show_mcq_interface(is_practice_mode=True)
+    elif st.session_state.mode == "practice_results_review":
+        show_detailed_mcq_review(is_practice_mode=True)
 
 
 if __name__ == "__main__":
