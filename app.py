@@ -1059,7 +1059,7 @@ def show_practice_mode():
             difficulty_levels = ["Easy", "Medium", "Hard"]
             selected_difficulty_practice = st.selectbox("Select Difficulty Level:", difficulty_levels, key="practice_difficulty_select")
 
-            num_questions = st.slider("Number of Questions:", 1, 10, 5, key="practice_num_questions_slider")
+            num_questions = st.slider("Number of Questions:", 1, 15, 5, key="practice_num_questions_slider")
 
             if st.button("Start Practice Session", key="start_practice_session_btn"):
                 # Clear previous practice state before generating new questions
