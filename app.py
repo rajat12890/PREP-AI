@@ -668,6 +668,7 @@ def show_dashboard():
                                 return
 
                     st.rerun()
+                    
 def show_test_interface():
     """Show the test interface with a real-time updating timer."""
     test_name = st.session_state.current_test
