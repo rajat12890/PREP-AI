@@ -166,7 +166,7 @@ def initialize_groq_client():
             llm = ChatGroq(
                 groq_api_key=st.session_state.groq_api_key,
                 model_name="llama3-70b-8192", # Using a powerful model for better quality
-                temperature=0.7,
+                temperature=0.3,
                 max_tokens=2000
             )
             return llm
@@ -199,20 +199,31 @@ def generate_questions(test_type, topic, count=5, difficulty="Medium"):
             ]
             """
     elif test_type == "Analytical Reasoning Test":
-        prompt_template = """Generate {count} analytical reasoning questions for '{topic}' of '{difficulty}' difficulty for a CSE employability test.
-            Each question should have 4 options (A, B, C, D) and include the correct answer letter (e.g., 'A') with detailed explanation.
-            Format as a JSON array of objects. Each object must have 'question', 'options' (an array of strings), 'correct_answer' (a single letter 'A','B','C','D'), and 'explanation' keys.
-            Focus on logical thinking and problem-solving skills.
-            Example format:
-            [
-                {{
-                    "question": "If all A are B, and all B are C, then all A are what?",
-                    "options": ["A) B", "B) C", "C) D", "D) A"],
-                    "correct_answer": "B",
-                    "explanation": "This is a basic syllogism. Since all A are B and all B are C, it logically follows that all A are C."
-                }}
-            ]
-            """
+        prompt_template = """
+Generate {count} high-quality analytical reasoning questions for the topic '{topic}' at '{difficulty}' difficulty level for a CSE employability test.
+
+Instructions:
+- Each question must test logical thinking, deductions, sequences, or patterns.
+- Include 4 clear options labeled "A)", "B)", "C)", and "D)".
+- For each question, include:
+    - 'question': the text of the question
+    - 'options': an array of 4 options
+    - 'correct_answer': a single letter: 'A', 'B', 'C', or 'D'
+    - 'explanation': a **detailed, step-by-step reasoning** that clearly justifies why the correct answer is right (and why others are wrong if needed).
+    - **Avoid shallow or memorized responses; handle edge cases explicitly.**
+    - Assume students have basic logic/math training but expect non-trivial reasoning.
+
+Format the entire output as a valid JSON array of objects, like this:
+[
+    {{
+        "question": "If all A are B, and all B are C, then all A are what?",
+        "options": ["A) B", "B) C", "C) D", "D) A"],
+        "correct_answer": "B",
+        "explanation": "All A are B, and all B are C, so all A are C by transitive logic."
+    }}
+]
+"""
+
     elif test_type == "Quantitative Ability Test":
         prompt_template = """Generate {count} quantitative ability questions for '{topic}' of '{difficulty}' difficulty for a CSE employability test.
             Each question should have 4 options (A, B, C, D) and include the correct answer letter (e.g., 'A') with step-by-step solution/explanation.
