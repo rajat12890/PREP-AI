@@ -199,27 +199,41 @@ def generate_questions(test_type, topic, count=5, difficulty="Medium"):
             ]
             """
     elif test_type == "Analytical Reasoning Test":
-        prompt_template  = """Generate {count} analytical reasoning questions for '{topic}' of '{difficulty}' difficulty for a CSE employability test.
-    Each question should have 4 options (A, B, C, D) and include the correct answer letter (e.g., 'A') with a detailed, step-by-step explanation.
-    **Crucially, ensure explanations account for edge cases and final conditions where standard per-day progress might not apply (e.g., the last day of a climb).**
-    Format as a JSON array of objects. Each object must have 'question', 'options' (an array of strings), 'correct_answer' (a single letter 'A','B','C','D'), and 'explanation' keys.
-    Focus on logical thinking, problem-solving skills, and clarity in reasoning.
+        prompt_template = """
+Generate {count} high-quality analytical reasoning questions for the topic '{topic}' at '{difficulty}' difficulty level for a CSE employability test.
 
-    Example format:
-    [
-        {{
-            "question": "A snail is at the bottom of a 20-foot well. Each day it climbs up 3 feet, and each night it slips back 2 feet. How many days will it take the snail to reach the top of the well?",
-            "options": ["A) 17 days", "B) 18 days", "C) 19 days", "D) 20 days"],
-            "correct_answer": "B",
-            "explanation": "The snail effectively climbs 3 - 2 = 1 foot per day.
-            However, this applies until the snail is close enough to climb out.
-            After 17 days, the snail will have climbed 17 * 1 = 17 feet.
-            On the 18th day, the snail starts at 17 feet. It climbs 3 feet.
-            17 + 3 = 20 feet.
-            At this point, the snail reaches the top of the well and does not slip back.
-            Therefore, it takes 18 days to reach the top."
-        }}
-    ]"""
+Instructions:
+- Each question must test logical thinking, deductions, sequences, or patterns.
+- Include 4 clear options labeled "A)", "B)", "C)", and "D)".
+- For each question, include:
+    - 'question': the text of the question
+    - 'options': an array of 4 options
+    - 'correct_answer': a single letter: 'A', 'B', 'C', or 'D'
+    - 'explanation': a **detailed, step-by-step reasoning** that clearly justifies why the correct answer is right (and why others are wrong if needed).
+    - **Avoid shallow or memorized responses; handle edge cases explicitly.**
+    - Assume students have basic logic/math training but expect non-trivial reasoning.
+Logic should be correct like
+ "question": "A snail is at the bottom of a 20-foot well. Each day it climbs up 3 feet, and each night it slips back 2 feet. How many days will it take the snail to reach the top of the well?",
+                "options": ["A) 17 days", "B) 18 days", "C) 19 days", "D) 20 days"],
+                "correct_answer": "B",
+                "explanation": "The snail effectively climbs 3 - 2 = 1 foot per day.
+                However, this applies until the snail is close enough to climb out.
+                After 17 days, the snail will have climbed 17 * 1 = 17 feet.
+                On the 18th day, the snail starts at 17 feet. It climbs 3 feet.
+                17 + 3 = 20 feet.
+                At this point, the snail reaches the top of the well and does not slip back.
+                Therefore, it takes 18 days to reach the top."
+take all edge cases like in this questions and dont repeat the questions in each set
+Format the entire output as a valid JSON array of objects, like this:
+[
+    {{
+        "question": "If all A are B, and all B are C, then all A are what?",
+        "options": ["A) B", "B) C", "C) D", "D) A"],
+        "correct_answer": "B",
+        "explanation": "All A are B, and all B are C, so all A are C by transitive logic."
+    }}
+]
+"""
 
     elif test_type == "Quantitative Ability Test":
         prompt_template = """Generate {count} quantitative ability questions for '{topic}' of '{difficulty}' difficulty for a CSE employability test.
