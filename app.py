@@ -492,7 +492,7 @@ def generate_coding_problems_fallback():
     sample_problems = [
         {
             "title": "Two Sum",
-            "description": "Given an array of integers `nums` and an integer `target`, return indices of the two numbers such that they add up to `target`.",
+            "description": "Given an array of integers `nums` and an integer `target`, return indices of the two numbers such as they add up to `target`.",
             "difficulty": "Easy",
             "example": "Input: nums = [2,7,11,15], target = 9\nOutput: [0,1] (Because nums[0] + nums[1] = 2 + 7 = 9)"
         },
@@ -668,7 +668,6 @@ def show_dashboard():
                                 return
 
                     st.rerun()
-
 def show_test_interface():
     """Show the test interface with a real-time updating timer."""
     test_name = st.session_state.current_test
@@ -678,32 +677,27 @@ def show_test_interface():
     st.markdown(f"## {config['icon']} {test_name}")
 
     if st.session_state.test_start_time:
-        timer_placeholder = st.empty()
+        elapsed = datetime.now() - st.session_state.test_start_time
+        remaining_seconds = int(timedelta(minutes=config['time_limit']).total_seconds() - elapsed.total_seconds())
 
-        while st.session_state.mode == "test":
-            elapsed = datetime.now() - st.session_state.test_start_time
-            remaining_seconds = int(timedelta(minutes=config['time_limit']).total_seconds() - elapsed.total_seconds())
+        if remaining_seconds <= 0:
+            st.markdown('<div class="timer">⏰ Time\'s up! Test completed.</div>', unsafe_allow_html=True)
+            st.error("Time's up! Your test has been automatically submitted.")
+            st.session_state.mode = "results"
+            st.rerun() # Rerun to switch to results page
+            return
 
-            if remaining_seconds <= 0:
-                timer_placeholder.markdown('<div class="timer">⏰ Time\'s up! Test completed.</div>', unsafe_allow_html=True)
-                st.error("Time's up! Your test has been automatically submitted.")
-                st.session_state.mode = "results"
-                st.rerun()
-                return
-            
-            minutes, seconds = divV(remaining_seconds, 60)
-            timer_placeholder.markdown(f'<div class="timer">⏱️ Time Remaining: {minutes:02d}:{seconds:02d}</div>', unsafe_allow_html=True)
+        minutes, seconds = divmod(remaining_seconds, 60)
+        st.markdown(f'<div class="timer">⏱️ Time Remaining: {minutes:02d}:{seconds:02d}</div>', unsafe_allow_html=True)
 
-            time.sleep(1)
-            st.rerun()
-
-    if st.session_state.mode == "test":
-        if test_name == "Written English Test":
-            show_essay_interface()
-        elif test_name == "Coding Test":
-            show_coding_interface()
-        else:
-            show_mcq_interface()
+    # The rest of your test logic (MCQ, Essay, Coding) goes here.
+    # It will be rendered on each rerun when the mode is 'test'.
+    if test_name == "Written English Test":
+        show_essay_interface()
+    elif test_name == "Coding Test":
+        show_coding_interface()
+    else:
+        show_mcq_interface()
 
 
 def show_mcq_interface(is_practice_mode=False):
