@@ -175,15 +175,16 @@ def initialize_groq_client():
             return None
     return None
 
-def generate_questions(test_type, topic, count=5):
+def generate_questions(test_type, topic, count=5, difficulty="Medium"): # Added difficulty parameter
     """Generate practice questions using Groq"""
     llm = initialize_groq_client()
     if not llm:
-        st.warning(f"Using sample questions for {test_type} - {topic}. Groq API key is missing or invalid.")
-        return create_sample_questions(test_type, topic, count)
+        st.warning(f"Using sample questions for {test_type} - {topic} ({difficulty}). Groq API key is missing or invalid.")
+        return create_sample_questions(test_type, topic, count, difficulty) # Pass difficulty to fallback
 
+    # Update prompt templates to include difficulty
     if test_type == "English Usage Test":
-        prompt_template = """Generate {count} multiple choice questions for '{topic}' for a CSE employability test.
+        prompt_template = """Generate {count} multiple choice questions for '{topic}' of '{difficulty}' difficulty for a CSE employability test.
             Each question should have 4 options (A, B, C, D) and include the correct answer letter (e.g., 'A') with explanation.
             Format as a JSON array of objects. Each object must have 'question', 'options' (an array of strings), 'correct_answer' (a single letter 'A','B','C','D'), and 'explanation' keys.
             Make questions practical and relevant to technical communication. Ensure options are distinct and plausible.
@@ -198,7 +199,7 @@ def generate_questions(test_type, topic, count=5):
             ]
             """
     elif test_type == "Analytical Reasoning Test":
-        prompt_template = """Generate {count} analytical reasoning questions for '{topic}' for a CSE employability test.
+        prompt_template = """Generate {count} analytical reasoning questions for '{topic}' of '{difficulty}' difficulty for a CSE employability test.
             Each question should have 4 options (A, B, C, D) and include the correct answer letter (e.g., 'A') with detailed explanation.
             Format as a JSON array of objects. Each object must have 'question', 'options' (an array of strings), 'correct_answer' (a single letter 'A','B','C','D'), and 'explanation' keys.
             Focus on logical thinking and problem-solving skills.
@@ -213,7 +214,7 @@ def generate_questions(test_type, topic, count=5):
             ]
             """
     elif test_type == "Quantitative Ability Test":
-        prompt_template = """Generate {count} quantitative ability questions for '{topic}' for a CSE employability test.
+        prompt_template = """Generate {count} quantitative ability questions for '{topic}' of '{difficulty}' difficulty for a CSE employability test.
             Each question should have 4 options (A, B, C, D) and include the correct answer letter (e.g., 'A') with step-by-step solution/explanation.
             Format as a JSON array of objects. Each object must have 'question', 'options' (an array of strings), 'correct_answer' (a single letter 'A','B','C','D'), and 'explanation' keys.
             Include numerical problems with clear mathematical solutions.
@@ -228,7 +229,7 @@ def generate_questions(test_type, topic, count=5):
             ]
             """
     elif test_type == "Domain Test (DSA)":
-        prompt_template = """Generate {count} Data Structures and Algorithms questions for '{topic}' for a CSE employability test.
+        prompt_template = """Generate {count} Data Structures and Algorithms questions for '{topic}' of '{difficulty}' difficulty for a CSE employability test.
             Each question should have 4 options (A, B, C, D) and include the correct answer letter (e.g., 'A') with detailed explanation.
             Format as a JSON array of objects. Each object must have 'question', 'options' (an array of strings), 'correct_answer' (a single letter 'A','B','C','D'), and 'explanation' keys.
             Focus on practical DSA concepts and implementation.
@@ -247,14 +248,14 @@ def generate_questions(test_type, topic, count=5):
         return []
 
     prompt = PromptTemplate(
-        input_variables=["topic", "count"],
+        input_variables=["topic", "count", "difficulty"], # Added difficulty
         template=prompt_template
     )
 
     try:
         chain = LLMChain(llm=llm, prompt=prompt)
-        response = chain.run(topic=topic, count=count)
-        # print(f"DEBUG: Raw AI Response for {test_type} - {topic}:\n{response[:500]}...") # Print first 500 chars for debug
+        response = chain.run(topic=topic, count=count, difficulty=difficulty) # Pass difficulty to chain.run
+        print(f"DEBUG: Raw AI Response for {test_type} - {topic} ({difficulty}):\n{response[:500]}...") # Print first 500 chars for debug
 
         # Attempt to parse JSON
         try:
@@ -275,66 +276,105 @@ def generate_questions(test_type, topic, count=5):
                     return valid_questions
                 else:
                     st.warning("AI generated questions were malformed or empty after validation. Using sample questions.")
-                    return create_sample_questions(test_type, topic, count)
+                    return create_sample_questions(test_type, topic, count, difficulty)
             else:
                 st.warning("AI response did not contain a valid JSON array. Using sample questions.")
-                return create_sample_questions(test_type, topic, count)
+                return create_sample_questions(test_type, topic, count, difficulty)
         except json.JSONDecodeError as e:
             st.warning(f"JSON parsing error: {e}. AI response might be malformed. Using sample questions.")
-            # print(f"DEBUG: JSONDecodeError: {e}, Response causing error: {response}") # More detailed error
-            return create_sample_questions(test_type, topic, count)
+            print(f"DEBUG: JSONDecodeError: {e}, Response causing error: {response}") # More detailed error
+            return create_sample_questions(test_type, topic, count, difficulty)
         except Exception as e:
             st.warning(f"An unexpected error occurred during JSON processing: {e}. Using sample questions.")
-            # print(f"DEBUG: Unexpected error during JSON processing: {e}, Response: {response}")
-            return create_sample_questions(test_type, topic, count)
+            print(f"DEBUG: Unexpected error during JSON processing: {e}, Response: {response}")
+            return create_sample_questions(test_type, topic, count, difficulty)
 
     except Exception as e:
         st.error(f"Error generating questions from Groq: {str(e)}. Using sample questions.")
-        # print(f"DEBUG: Groq API call failed: {e}")
-        return create_sample_questions(test_type, topic, count)
+        print(f"DEBUG: Groq API call failed: {e}")
+        return create_sample_questions(test_type, topic, count, difficulty)
 
-def create_sample_questions(test_type, topic, count):
+def create_sample_questions(test_type, topic, count, difficulty="Medium"): # Added difficulty parameter
     """Create sample questions as fallback if AI generation fails or API key is missing.
     Ensures that 'count' questions are returned, even if by repeating existing samples."""
     all_sample_q = []
 
+    # Example: you might have different sets of samples per difficulty
+    # For simplicity, I'm just reusing existing samples but passing the difficulty along.
+    # In a real scenario, you'd curate specific 'Easy', 'Medium', 'Hard' samples.
+
     if test_type == "English Usage Test":
-        all_sample_q = [
-            {"question": "Choose the correct article: __ apple a day keeps the doctor away.", "options": ["A) A", "B) An", "C) The", "D) No article"], "correct_answer": "B", "explanation": "Use 'an' before words that start with a vowel sound."},
-            {"question": "Identify the idiom: 'Bite the bullet'", "options": ["A) To eat quickly", "B) To face a difficult situation with courage", "C) To chew on metal", "D) To harm someone"], "correct_answer": "B", "explanation": "To 'bite the bullet' means to endure a difficult or unpleasant situation."},
-            {"question": "Correct the sentence: 'He don't know nothing.'", "options": ["A) He doesn't know nothing.", "B) He don't know anything.", "C) He doesn't know anything.", "D) He knows nothing."], "correct_answer": "C", "explanation": "Avoid double negatives. 'He doesn't know anything' or 'He knows nothing' are correct."},
-            {"question": "What is the antonym of 'Efficient'?", "options": ["A) Productive", "B) Capable", "C) Inefficient", "D) Effective"], "correct_answer": "C", "explanation": "Efficient means performing or functioning in the best possible manner with the least waste of time and effort; Inefficient is its opposite."},
-            {"question": "Choose the correctly spelled word:", "options": ["A) Occassion", "B) Occasion", "C) Ocasion", "D) Occassionn"], "correct_answer": "B", "explanation": "The correct spelling is 'occasion'."}
-        ]
+        if difficulty == "Easy":
+            all_sample_q = [
+                {"question": "Choose the correct article: __ apple a day keeps the doctor away.", "options": ["A) A", "B) An", "C) The", "D) No article"], "correct_answer": "B", "explanation": "Use 'an' before words that start with a vowel sound."},
+                {"question": "Identify the idiom: 'Break a leg'", "options": ["A) To injure oneself", "B) To wish good luck", "C) To stop working", "D) To run fast"], "correct_answer": "B", "explanation": "'Break a leg' is an idiom used to wish someone good luck, especially before a performance."},
+                {"question": "Correct the sentence: 'She go to school.'", "options": ["A) She goes to school.", "B) She going to school.", "C) She went to school.", "D) She gone to school."], "correct_answer": "A", "explanation": "For third-person singular subjects (she, he, it) in the present tense, add '-es' or '-s' to the verb."},
+            ]
+        elif difficulty == "Medium":
+            all_sample_q = [
+                {"question": "Identify the passive voice: 'The dog chased the cat.'", "options": ["A) The dog chased the cat.", "B) The cat was chased by the dog.", "C) Chasing the cat was the dog.", "D) The cat chasing the dog."], "correct_answer": "B", "explanation": "In passive voice, the subject receives the action. 'The cat' (subject) receives the action of 'was chased'."},
+                {"question": "Choose the most appropriate preposition: 'He is good ___ physics.'", "options": ["A) at", "B) in", "C) on", "D) for"], "correct_answer": "A", "explanation": "'Good at' is the correct idiom to express proficiency in a subject or skill."},
+                {"question": "Which of these words is a synonym for 'Abundant'?", "options": ["A) Scarce", "B) Plentiful", "C) Rare", "D) Limited"], "correct_answer": "B", "explanation": "'Abundant' means existing or available in large quantities; 'plentiful' has a similar meaning."},
+            ]
+        else: # Hard or any other difficulty
+            all_sample_q = [
+                {"question": "Complete the sentence with the correct phrasal verb: 'They decided to ___ the meeting until next week.'", "options": ["A) put off", "B) put on", "C) put up", "D) put down"], "correct_answer": "A", "explanation": "'Put off' means to postpone or delay something."},
+                {"question": "Identify the error: 'Despite of the rain, they went for a walk.'", "options": ["A) 'Despite of'", "B) 'the rain'", "C) 'they went'", "D) 'for a walk'"], "correct_answer": "A", "explanation": "The correct phrase is either 'despite the rain' or 'in spite of the rain'. 'Despite of' is incorrect."},
+                {"question": "Which word is an antonym for 'Ephemeral'?", "options": ["A) Fleeting", "B) Permanent", "C) Transient", "D) Momentary"], "correct_answer": "B", "explanation": "'Ephemeral' means lasting for a very short time. 'Permanent' is its direct opposite."},
+            ]
     elif test_type == "Analytical Reasoning Test":
-        all_sample_q = [
-            {"question": "Find the missing number in the series: 2, 4, 8, 16, __", "options": ["A) 24", "B) 32", "C) 48", "D) 64"], "correct_answer": "B", "explanation": "This is a geometric progression where each number is doubled (2*2=4, 4*2=8, 8*2=16, 16*2=32)."},
-            {"question": "Which of the following is different from the rest?", "options": ["A) Apple", "B) Banana", "C) Potato", "D) Grape"], "correct_answer": "C", "explanation": "Potato is a vegetable, while the others are fruits."},
-            {"question": "If 'BAT' is coded as '2120', how is 'CAT' coded?", "options": ["A) 3120", "B) 231", "C) 321", "D) 123"], "correct_answer": "A", "explanation": "Each letter is assigned its alphabetical position (A=1, B=2, C=3, etc.). So, C=3, A=1, T=20, making CAT = 3120."},
-            {"question": "All cats are animals. Some animals are black. Therefore, some cats are black. Is this statement:", "options": ["A) True", "B) False", "C) Cannot be determined", "D) Irrelevant"], "correct_answer": "C", "explanation": "This is an example of an invalid syllogism. Just because some animals are black doesn't mean those specific black animals are cats. We cannot determine if some cats are black from the given premises."},
-            {"question": "A is taller than B. B is taller than C. D is taller than A. Who is the tallest?", "options": ["A) A", "B) B", "C) C", "D) D"], "correct_answer": "D", "explanation": "The order of height is C < B < A < D, so D is the tallest."}
-        ]
+        if difficulty == "Easy":
+            all_sample_q = [
+                {"question": "Find the missing number in the series: 2, 4, 6, 8, __", "options": ["A) 9", "B) 10", "C) 12", "D) 14"], "correct_answer": "B", "explanation": "This is an arithmetic progression where each number increases by 2."},
+                {"question": "Which of the following is different from the rest?", "options": ["A) Car", "B) Bus", "C) Bicycle", "D) Truck"], "correct_answer": "C", "explanation": "A bicycle is human-powered, while the others are motorized vehicles."},
+            ]
+        elif difficulty == "Medium":
+            all_sample_q = [
+                {"question": "If 'SPIN' is coded as '5049', how is 'PINS' coded?", "options": ["A) 4950", "B) 9405", "C) 0495", "D) 0594"], "correct_answer": "A", "explanation": "The digits are directly mapped to the letters: S=5, P=0, I=4, N=9. So, PINS becomes 0495."},
+                {"question": "All dogs are mammals. Some mammals are pets. Therefore, some dogs are pets. Is this statement:", "options": ["A) True", "B) False", "C) Cannot be determined", "D) Irrelevant"], "correct_answer": "C", "explanation": "This is an invalid syllogism. The premises don't guarantee that the pets that are mammals are also dogs. It cannot be determined."},
+            ]
+        else: # Hard or any other difficulty
+            all_sample_q = [
+                {"question": "A, B, C, D, E are sitting in a row. C is to the immediate left of D. B is to the immediate right of E. E is between A and B. Who is in the middle?", "options": ["A) A", "B) B", "C) C", "D) E"], "correct_answer": "D", "explanation": "The arrangement is A E B C D. So, E is in the middle."},
+                {"question": "If 'CLOUD' is coded as 'FNQWG', how is 'SIGHT' coded?", "options": ["A) TJHIU", "B) VKHKW", "C) WLIHV", "D) VLJHW"], "correct_answer": "B", "explanation": "Each letter is shifted by +3 positions: C->F, L->N, O->Q, U->W, D->G. Applying the same to SIGHT: S->V, I->L, G->J, H->K, T->W."},
+            ]
     elif test_type == "Quantitative Ability Test":
-        all_sample_q = [
-            {"question": "A shopkeeper sells an item for $120, making a profit of 20%. What was the cost price?", "options": ["A) $96", "B) $100", "C) $110", "D) $144"], "correct_answer": "B", "explanation": "If selling price is $120 and profit is 20%, then $120 = Cost Price * (1 + 0.20) = 1.2 * Cost Price. So, Cost Price = 120 / 1.2 = $100."},
-            {"question": "If 5 workers can complete a task in 10 days, how many days will 10 workers take to complete the same task?", "options": ["A) 2 days", "B) 5 days", "C) 10 days", "D) 20 days"], "correct_answer": "B", "explanation": "Total work = Workers × Days = 5 × 10 = 50 units. For 10 workers, Days = Total Work / Workers = 50 / 10 = 5 days."},
-            {"question": "What is the area of a circle with radius 7 cm? (Use π = 22/7)", "options": ["A) 44 sq cm", "B) 154 sq cm", "C) 22 sq cm", "D) 77 sq cm"], "correct_answer": "B", "explanation": "Area of circle = πr² = (22/7) * 7 * 7 = 22 * 7 = 154 sq cm."},
-            {"question": "If x + 5 = 12, what is the value of x?", "options": ["A) 5", "B) 7", "C) 12", "D) 17"], "correct_answer": "B", "explanation": "Subtract 5 from both sides: x = 12 - 5 = 7."},
-            {"question": "What is the average of 10, 20, and 30?", "options": ["A) 15", "B) 20", "C) 25", "D) 60"], "correct_answer": "B", "explanation": "Average = (Sum of numbers) / (Count of numbers) = (10 + 20 + 30) / 3 = 60 / 3 = 20."}
-        ]
+        if difficulty == "Easy":
+            all_sample_q = [
+                {"question": "What is 10% of 200?", "options": ["A) 10", "B) 20", "C) 30", "D) 40"], "correct_answer": "B", "explanation": "10% of 200 is (10/100) * 200 = 0.10 * 200 = 20."},
+                {"question": "If a car travels at 60 km/h for 2 hours, how far does it travel?", "options": ["A) 30 km", "B) 60 km", "C) 120 km", "D) 180 km"], "correct_answer": "C", "explanation": "Distance = Speed × Time = 60 km/h × 2 h = 120 km."},
+            ]
+        elif difficulty == "Medium":
+            all_sample_q = [
+                {"question": "A sum of money doubles itself in 5 years at simple interest. What is the rate of interest per annum?", "options": ["A) 10%", "B) 15%", "C) 20%", "D) 25%"], "correct_answer": "C", "explanation": "If a sum doubles, interest = principal. So, I = P. Using I = PRT/100, P = P * R * 5 / 100 => 1 = 5R/100 => R = 20%."},
+                {"question": "If the length of a rectangle is 10 cm and its area is 50 sq cm, what is its width?", "options": ["A) 4 cm", "B) 5 cm", "C) 6 cm", "D) 7 cm"], "correct_answer": "B", "explanation": "Area = Length × Width. So, 50 = 10 × Width => Width = 5 cm."},
+            ]
+        else: # Hard or any other difficulty
+            all_sample_q = [
+                {"question": "A mixture contains milk and water in the ratio 5:1. On adding 5 liters of water, the ratio of milk to water becomes 5:2. What is the quantity of milk in the original mixture?", "options": ["A) 20 liters", "B) 25 liters", "C) 30 liters", "D) 35 liters"], "correct_answer": "B", "explanation": "Let milk = 5x, water = x. After adding 5L water: 5x / (x+5) = 5/2. Solving gives x=5. So original milk = 5x = 25 liters."},
+                {"question": "If 1/3 of a number is 20, what is 2/5 of that number?", "options": ["A) 12", "B) 24", "C) 36", "D) 48"], "correct_answer": "B", "explanation": "Let the number be N. (1/3)N = 20 => N = 60. Then (2/5)N = (2/5) * 60 = 2 * 12 = 24."},
+            ]
     elif test_type == "Domain Test (DSA)":
-        all_sample_q = [
-            {"question": "Which data structure is best for implementing a 'undo' feature in an editor?", "options": ["A) Queue", "B) Array", "C) Stack", "D) Hash Table"], "correct_answer": "C", "explanation": "A stack is suitable for 'undo' operations because it follows LIFO (Last-In, First-Out), meaning the last element added is the first to be undone."},
-            {"question": "What is the worst-case time complexity of inserting an element into a sorted linked list?", "options": ["A) O(1)", "B) O(log n)", "C) O(n)", "D) O(n log n)"], "correct_answer": "C", "explanation": "In the worst case, you might need to traverse the entire list to find the correct insertion point."},
-            {"question": "Which algorithm finds the shortest path in a graph with non-negative edge weights?", "options": ["A) DFS", "B) BFS", "C) Dijkstra's Algorithm", "D) Prim's Algorithm"], "correct_answer": "C", "explanation": "Dijkstra's Algorithm is specifically designed for finding the shortest paths from a single source vertex to all other vertices in a graph with non-negative edge weights."},
-            {"question": "What is a 'hash collision' in a hash table?", "options": ["A) When two different keys map to the same index", "B) When two identical keys map to different indices", "C) When the hash table is full", "D) When an element is deleted"], "correct_answer": "A", "explanation": "A hash collision occurs when the hash function generates the same index for two or more different keys."},
-            {"question": "Which sorting algorithm has the best average-case time complexity?", "options": ["A) Bubble Sort", "B) Selection Sort", "C) Quick Sort", "D) Insertion Sort"], "correct_answer": "C", "explanation": "Quick Sort typically has an average-case time complexity of O(n log n), which is generally considered the best among comparison-based sorts."}
-        ]
+        if difficulty == "Easy":
+            all_sample_q = [
+                {"question": "Which data structure uses LIFO principle?", "options": ["A) Queue", "B) Stack", "C) Linked List", "D) Array"], "correct_answer": "B", "explanation": "Stack follows the Last-In, First-Out (LIFO) principle, meaning the last element added is the first one to be removed."},
+                {"question": "What is the time complexity to access an element in an array by its index?", "options": ["A) O(1)", "B) O(log n)", "C) O(n)", "D) O(n log n)"], "correct_answer": "A", "explanation": "Array elements can be accessed directly using their index, which takes constant time."},
+            ]
+        elif difficulty == "Medium":
+            all_sample_q = [
+                {"question": "Which algorithm is used to find the minimum spanning tree in a graph?", "options": ["A) Dijkstra's Algorithm", "B) Bellman-Ford Algorithm", "C) Prim's or Kruskal's Algorithm", "D) Floyd-Warshall Algorithm"], "correct_answer": "C", "explanation": "Prim's and Kruskal's algorithms are common algorithms used to find a minimum spanning tree in a weighted undirected graph."},
+                {"question": "What is the primary disadvantage of using a hash table for data storage?", "options": ["A) Slow insertion", "B) High memory usage", "C) Collision handling overhead", "D) Not suitable for large datasets"], "correct_answer": "C", "explanation": "Hash collisions, where different keys map to the same index, require additional logic (like chaining or open addressing), adding overhead and complexity."},
+            ]
+        else: # Hard or any other difficulty
+            all_sample_q = [
+                {"question": "Which sorting algorithm has a worst-case time complexity of O(n log n) and is a comparison sort?", "options": ["A) Quick Sort", "B) Merge Sort", "C) Heap Sort", "D) Both B and C"], "correct_answer": "D", "explanation": "Both Merge Sort and Heap Sort guarantee O(n log n) worst-case time complexity, whereas Quick Sort's worst-case is O(n^2)."},
+                {"question": "Which data structure is suitable for implementing a symbol table where operations like search, insert, and delete are frequently performed?", "options": ["A) Array", "B) Linked List", "C) Hash Table or Balanced Binary Search Tree", "D) Queue"], "correct_answer": "C", "explanation": "Hash tables offer average O(1) time for these operations. Balanced BSTs (like AVL trees or Red-Black trees) offer O(log n) worst-case time, both making them suitable."},
+            ]
     
     # Ensure we return at least 'count' questions by repeating if necessary
     if not all_sample_q: # Should not happen with current setup, but as a safeguard
-        # If no samples are defined at all, return a very basic fallback
-        return [{"question": f"Sample Question {i+1} for {test_type} {topic}", "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"], "correct_answer": "A", "explanation": "This is a fallback explanation."} for i in range(count)]
+        print(f"WARNING: No sample questions defined for {test_type} with difficulty {difficulty}. Returning empty list.")
+        return []
 
     if len(all_sample_q) < count:
         # Repeat samples to reach the desired count
@@ -349,7 +389,7 @@ def generate_essay_topic():
     """Generate essay topic using Groq"""
     llm = initialize_groq_client()
     if not llm:
-        # print("DEBUG: Groq client not initialized for essay topic generation. Using sample.")
+        print("DEBUG: Groq client not initialized for essay topic generation. Using sample.")
         return random.choice([
             "The Impact of Artificial Intelligence on Future Software Development",
             "Cybersecurity Challenges in the Digital Age",
@@ -372,7 +412,7 @@ def generate_essay_topic():
         return response.strip().replace('"', '') # Remove potential quotes around the topic
     except Exception as e:
         st.error(f"Error generating essay topic: {str(e)}. Using a sample topic.")
-        # print(f"DEBUG: Groq API call failed for essay topic: {e}")
+        print(f"DEBUG: Groq API call failed for essay topic: {e}")
         return random.choice([
             "The Impact of Artificial Intelligence on Future Software Development",
             "Cybersecurity Challenges in the Digital Age",
@@ -386,7 +426,7 @@ def generate_coding_problems():
     llm = initialize_groq_client()
     if not llm:
         st.warning("Using sample coding problems. Groq API key is missing or invalid.")
-        # print("DEBUG: Groq client not initialized for coding problem generation. Using sample.")
+        print("DEBUG: Groq client not initialized for coding problem generation. Using sample.")
         return generate_coding_problems_fallback()
 
     prompt = PromptTemplate(
@@ -416,7 +456,7 @@ def generate_coding_problems():
     try:
         chain = LLMChain(llm=llm, prompt=prompt)
         response = chain.run()
-        # print(f"DEBUG: Raw AI Response for Coding Problems:\n{response[:500]}...") # Print first 500 chars for debug
+        print(f"DEBUG: Raw AI Response for Coding Problems:\n{response[:500]}...") # Print first 500 chars for debug
 
         # Attempt to parse JSON
         try:
@@ -440,16 +480,16 @@ def generate_coding_problems():
                 return generate_coding_problems_fallback()
         except json.JSONDecodeError as e:
             st.warning(f"JSON parsing error for coding problems: {e}. AI response might be malformed. Using sample problems.")
-            # print(f"DEBUG: JSONDecodeError for coding problems: {e}, Response causing error: {response}")
+            print(f"DEBUG: JSONDecodeError for coding problems: {e}, Response causing error: {response}")
             return generate_coding_problems_fallback()
         except Exception as e:
             st.warning(f"An unexpected error occurred during coding problem JSON processing: {e}. Using sample problems.")
-            # print(f"DEBUG: Unexpected error during coding problem JSON processing: {e}, Response: {response}")
+            print(f"DEBUG: Unexpected error during coding problem JSON processing: {e}, Response: {response}")
             return generate_coding_problems_fallback()
 
     except Exception as e:
         st.error(f"Error generating coding problems from Groq: {str(e)}. Using sample problems.")
-        # print(f"DEBUG: Groq API call failed for coding problems: {e}")
+        print(f"DEBUG: Groq API call failed for coding problems: {e}")
         return generate_coding_problems_fallback()
 
 def generate_coding_problems_fallback():
@@ -491,8 +531,8 @@ def generate_coding_problems_fallback():
 def main():
     st.markdown('<h1 class="main-header">🎓 CSE Employability Test Preparation</h1>', unsafe_allow_html=True)
 
-    # API Key Input (only show if not in test/practice_questions mode)
-    if not st.session_state.groq_api_key and st.session_state.mode in ["dashboard", "practice"]:
+    # API Key Input
+    if not st.session_state.groq_api_key:
         st.info("Please enter your **Groq API key** to generate AI-powered questions and explanations. You can get one from [Groq Console](https://console.groq.com/keys).")
         api_key_input = st.text_input("Enter Groq API Key:", type="password", key="groq_api_key_input_widget")
         
@@ -522,56 +562,18 @@ def main():
         st.rerun()
 
     # Main content rendering based on mode
-    # Moved the timer logic out of show_test_interface and into main to control reruns better
-    if st.session_state.mode == "test":
-        test_name = st.session_state.current_test
-        config = TEST_CONFIGS[test_name]
-        
-        st.markdown(f"---")
-        st.markdown(f"## {config['icon']} {test_name}")
-
-        # Placeholder for timer
-        timer_placeholder = st.empty()
-
-        # Update timer display
-        if st.session_state.test_start_time:
-            elapsed = datetime.now() - st.session_state.test_start_time
-            remaining_seconds = int(timedelta(minutes=config['time_limit']).total_seconds() - elapsed.total_seconds())
-
-            if remaining_seconds <= 0:
-                timer_placeholder.markdown('<div class="timer">⏰ Time\'s up! Test completed.</div>', unsafe_allow_html=True)
-                st.error("Time's up! Your test has been automatically submitted.")
-                st.session_state.mode = "results"
-                st.rerun()
-                return # Exit main to go to results
-            
-            minutes, seconds = divmod(remaining_seconds, 60)
-            timer_placeholder.markdown(f'<div class="timer">⏱️ Time Remaining: {minutes:02d}:{seconds:02d}</div>', unsafe_allow_html=True)
-        
-        # Render the specific test interface below the timer
-        if test_name == "Written English Test":
-            show_essay_interface()
-        elif test_name == "Coding Test":
-            show_coding_interface()
-        else: # For MCQ-based tests
-            show_mcq_interface()
-        
-        # This is where the magic happens for real-time updates within the "test" mode
-        # Only rerun if still in "test" mode and timer is active
-        if st.session_state.mode == "test" and st.session_state.test_start_time is not None:
-            time.sleep(1)
-            st.rerun() # Force rerun to update the timer and test content
-
-
-    elif st.session_state.mode == "dashboard":
+    if st.session_state.mode == "dashboard":
         show_dashboard()
+    elif st.session_state.mode == "test":
+        show_test_interface()
     elif st.session_state.mode == "practice":
         show_practice_mode()
-    elif st.session_state.mode == "practice_questions":
-        show_practice_mode() # This will internally call show_mcq_interface(is_practice_mode=True)
+    elif st.session_state.mode == "practice_questions": # When actively doing practice questions
+        # This will be handled by show_practice_mode, which calls show_mcq_interface
+        # But we need to prevent dashboard from showing too
+        show_practice_mode()
     elif st.session_state.mode == "results":
-        show_results()
-
+        show_results() # Display results directly if redirected from a test completion
 
 def reset_session_state_for_dashboard():
     """Resets all relevant session state variables to default for dashboard view."""
@@ -619,6 +621,10 @@ def show_dashboard():
     st.markdown("---")
     st.markdown("## 📚 Select a Test")
 
+    # NEW: Global Difficulty Selector for Dashboard Tests
+    difficulty_levels = ["Easy", "Medium", "Hard"]
+    selected_difficulty_dashboard = st.selectbox("Select **Overall Test Difficulty**:", difficulty_levels, key="dashboard_difficulty_select")
+
     cols = st.columns(2)
     for i, (test_name, config) in enumerate(TEST_CONFIGS.items()):
         with cols[i % 2]:
@@ -627,7 +633,6 @@ def show_dashboard():
                 <div class="test-card">
                     <h3>{config['icon']} {test_name}</h3>
                     <p><strong>Topics:</strong> {len(config['topics'])} areas</p>
-                    <p><strong>Questions:</strong> {config['question_count']}</p>
                     <p><strong>Time:</strong> {config['time_limit']} minutes</p>
                 </div>
                 """, unsafe_allow_html=True)
@@ -647,13 +652,14 @@ def show_dashboard():
 
                     with st.spinner(f"Generating {test_name} questions... This may take a moment."):
                         if test_name == "Written English Test":
+                            # Essay topic generation doesn't currently take difficulty, but could be extended
                             st.session_state.essay_topic = generate_essay_topic()
                         elif test_name == "Coding Test":
+                            # Coding problems could also be generated with difficulty in mind
                             st.session_state.coding_problems = generate_coding_problems()
                         else:
-                            # Generate questions for other tests
+                            # Generate questions for other tests using the selected dashboard difficulty
                             all_questions = []
-                            # Distribute questions evenly among topics, then add any remainder to random topics
                             questions_per_topic = config['question_count'] // len(config['topics'])
                             remaining_questions = config['question_count'] % len(config['topics'])
 
@@ -662,7 +668,8 @@ def show_dashboard():
                                 if remaining_questions > 0:
                                     q_count += 1
                                     remaining_questions -= 1
-                                questions = generate_questions(test_name, topic, q_count)
+                                # Pass selected_difficulty_dashboard here
+                                questions = generate_questions(test_name, topic, q_count, selected_difficulty_dashboard)
                                 all_questions.extend(questions)
 
                             random.shuffle(all_questions) # Shuffle for variety
@@ -670,15 +677,57 @@ def show_dashboard():
                             if not st.session_state.questions:
                                 st.error(f"Failed to generate questions for {test_name}. Please check your API key or try again.")
                                 st.session_state.mode = "dashboard" # Go back if no questions
-                                # Do not rerun here; let the outer main loop handle the mode change.
                                 return
 
                     st.rerun() # Only rerun once questions are generated/assigned
 
-# show_test_interface function has been refactored and its content moved to main()
-# Leaving this as a placeholder, but its logic is now primarily in main()
-# def show_test_interface():
-#     pass
+def show_test_interface():
+    """Show the test interface with a real-time updating timer."""
+    test_name = st.session_state.current_test
+    config = TEST_CONFIGS[test_name]
+
+    st.markdown(f"---")
+    st.markdown(f"## {config['icon']} {test_name}")
+
+    # Timer display and logic
+    if st.session_state.test_start_time:
+        timer_placeholder = st.empty() # Placeholder for the timer display
+
+        # IMPORTANT: This block will cause continuous reruns.
+        # It's inside a 'while True' loop to ensure constant updates.
+        # This means other interactions might be slightly delayed until the sleep finishes.
+        # For a timer, this is often the desired behavior.
+        while st.session_state.mode == "test": # Only run timer if in active test mode
+            elapsed = datetime.now() - st.session_state.test_start_time
+            remaining_seconds = int(timedelta(minutes=config['time_limit']).total_seconds() - elapsed.total_seconds())
+            
+            if remaining_seconds <= 0:
+                timer_placeholder.markdown('<div class="timer">⏰ Time\'s up! Test completed.</div>', unsafe_allow_html=True)
+                st.error("Time's up! Your test has been automatically submitted.")
+                st.session_state.mode = "results"
+                st.rerun() # Rerun to go to results
+                return # Exit function after rerunning
+            
+            minutes, seconds = divmod(remaining_seconds, 60)
+            timer_placeholder.markdown(f'<div class="timer">⏱️ Time Remaining: {minutes:02d}:{seconds:02d}</div>', unsafe_allow_html=True)
+            
+            # This sleep and rerun is crucial for real-time timer updates
+            time.sleep(1)
+            st.rerun() # Force rerun to update the timer
+        
+        # If the mode changed (e.g., to 'results' or 'dashboard' from within an MCQ/Essay/Coding submit button)
+        # then the while loop would have exited, and the rest of the script (main()) will handle the new mode.
+    
+    # Test-specific interfaces (these will only run once after a rerun,
+    # or if the timer is not active (e.g., in practice mode where timer isn't enforced this way))
+    if st.session_state.mode == "test": # Only display test content if still in test mode
+        if test_name == "Written English Test":
+            show_essay_interface()
+        elif test_name == "Coding Test":
+            show_coding_interface()
+        else: # For MCQ-based tests (English, Analytical, Quantitative, Domain DSA)
+            show_mcq_interface()
+
 
 def show_mcq_interface(is_practice_mode=False):
     """Show multiple choice question interface"""
@@ -1005,6 +1054,11 @@ def show_practice_mode():
             st.write(", ".join(config['topics']))
 
             selected_topic = st.selectbox("Select Topic to Practice:", config['topics'], key="practice_topic_select")
+            
+            # NEW: Difficulty Level Selector for Practice Mode
+            difficulty_levels = ["Easy", "Medium", "Hard"]
+            selected_difficulty_practice = st.selectbox("Select Difficulty Level:", difficulty_levels, key="practice_difficulty_select")
+
             num_questions = st.slider("Number of Questions:", 1, 10, 5, key="practice_num_questions_slider")
 
             if st.button("Start Practice Session", key="start_practice_session_btn"):
@@ -1015,8 +1069,9 @@ def show_practice_mode():
                 st.session_state.score = 0 
                 st.session_state.current_test = selected_test_type # Needed for show_mcq_interface context
 
-                with st.spinner(f"Generating practice questions for {selected_topic}..."):
-                    st.session_state.questions = generate_questions(selected_test_type, selected_topic, num_questions)
+                with st.spinner(f"Generating practice questions for {selected_topic} ({selected_difficulty_practice})..."):
+                    # Pass the selected_difficulty_practice to the generation function
+                    st.session_state.questions = generate_questions(selected_test_type, selected_topic, num_questions, selected_difficulty_practice)
                     if not st.session_state.questions:
                         st.error("Could not generate practice questions. Please try a different topic or check your API key.")
                         st.session_state.mode = "practice" # Stay in practice selection
