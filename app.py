@@ -254,8 +254,8 @@ def generate_questions(test_type, topic, count=5, difficulty="Medium"): # Added 
 
     try:
         chain = LLMChain(llm=llm, prompt=prompt)
-        response = chain.run(topic=topic, count=count, difficulty=difficulty) # Pass difficulty to chain.run
-        print(f"DEBUG: Raw AI Response for {test_type} - {topic} ({difficulty}):\n{response[:500]}...") # Print first 500 chars for debug
+        response = chain.run(topic=topic, count=count, difficulty=difficulty)
+        print(f"DEBUG: Raw AI Response for {test_type} - {topic} ({difficulty}):\n{response[:500]}...")
 
         # Attempt to parse JSON
         try:
@@ -282,7 +282,7 @@ def generate_questions(test_type, topic, count=5, difficulty="Medium"): # Added 
                 return create_sample_questions(test_type, topic, count, difficulty)
         except json.JSONDecodeError as e:
             st.warning(f"JSON parsing error: {e}. AI response might be malformed. Using sample questions.")
-            print(f"DEBUG: JSONDecodeError: {e}, Response causing error: {response}") # More detailed error
+            print(f"DEBUG: JSONDecodeError: {e}, Response causing error: {response}")
             return create_sample_questions(test_type, topic, count, difficulty)
         except Exception as e:
             st.warning(f"An unexpected error occurred during JSON processing: {e}. Using sample questions.")
@@ -298,10 +298,6 @@ def create_sample_questions(test_type, topic, count, difficulty="Medium"): # Add
     """Create sample questions as fallback if AI generation fails or API key is missing.
     Ensures that 'count' questions are returned, even if by repeating existing samples."""
     all_sample_q = []
-
-    # Example: you might have different sets of samples per difficulty
-    # For simplicity, I'm just reusing existing samples but passing the difficulty along.
-    # In a real scenario, you'd curate specific 'Easy', 'Medium', 'Hard' samples.
 
     if test_type == "English Usage Test":
         if difficulty == "Easy":
@@ -456,7 +452,7 @@ def generate_coding_problems():
     try:
         chain = LLMChain(llm=llm, prompt=prompt)
         response = chain.run()
-        print(f"DEBUG: Raw AI Response for Coding Problems:\n{response[:500]}...") # Print first 500 chars for debug
+        print(f"DEBUG: Raw AI Response for Coding Problems:\n{response[:500]}...")
 
         # Attempt to parse JSON
         try:
@@ -771,7 +767,16 @@ def show_mcq_interface(is_practice_mode=False):
 
     # Options
     # Generate unique keys for radio buttons for each question
-    selected_option = st.radio("Choose your answer:", question_data["options"], key=f"mcq_q_{current_q_index}_{st.session_state.current_test}")
+    selected_option_value = None
+    if f"mcq_q_{current_q_index}_{st.session_state.current_test}_radio" in st.session_state:
+        selected_option_value = st.session_state[f"mcq_q_{current_q_index}_{st.session_state.current_test}_radio"]
+
+    selected_option = st.radio(
+        "Choose your answer:",
+        question_data["options"],
+        key=f"mcq_q_{current_q_index}_{st.session_state.current_test}_radio",
+        index=question_data["options"].index(selected_option_value) if selected_option_value in question_data["options"] else None
+    )
     
     col1, col2 = st.columns(2)
 
@@ -779,6 +784,9 @@ def show_mcq_interface(is_practice_mode=False):
         if st.button("Submit Answer", key=f"submit_mcq_{current_q_index}_{st.session_state.current_test}"):
             # Extract answer letter (A, B, C, D)
             answer_letter = selected_option[0] if selected_option else None # Get the first char (A, B, C, D)
+            
+            # Find the full text of the user's selected option to store for results review
+            user_marked_option_text = selected_option if selected_option else "Not Answered"
             
             if answer_letter is None:
                 st.warning("Please select an answer before submitting.")
@@ -793,11 +801,13 @@ def show_mcq_interface(is_practice_mode=False):
                 
                 st.info(f"**Explanation:** {question_data['explanation']}")
                 
-                # Store the answer for review
+                # Store the answer for review, including the full text of the user's marked option
                 st.session_state.answers.append({
                     "question": question_data["question"],
-                    "user_answer": answer_letter,
-                    "correct_answer": question_data["correct_answer"],
+                    "user_answer_letter": answer_letter, # Storing the letter
+                    "user_answer_text": user_marked_option_text, # Storing the full text
+                    "correct_answer_letter": question_data["correct_answer"],
+                    "correct_answer_text": next(opt for opt in question_data["options"] if opt.startswith(question_data["correct_answer"] + ")")), # Get full text of correct answer
                     "is_correct": correct,
                     "explanation": question_data["explanation"]
                 })
@@ -808,10 +818,13 @@ def show_mcq_interface(is_practice_mode=False):
 
     with col2:
         if st.button("Skip Question", key=f"skip_mcq_{current_q_index}_{st.session_state.current_test}"):
+            # Store skipped answer
             st.session_state.answers.append({
                 "question": question_data["question"],
-                "user_answer": "Skipped",
-                "correct_answer": question_data["correct_answer"],
+                "user_answer_letter": "Skipped",
+                "user_answer_text": "Skipped",
+                "correct_answer_letter": question_data["correct_answer"],
+                "correct_answer_text": next(opt for opt in question_data["options"] if opt.startswith(question_data["correct_answer"] + ")")), # Get full text of correct answer
                 "is_correct": False,
                 "explanation": question_data["explanation"]
             })
@@ -881,8 +894,14 @@ def show_coding_interface():
         st.markdown(f"**Your Solution (Problem {i+1}):**")
         # Ensure a robust default value for text_area to prevent errors if answers is not yet populated
         current_solution = ""
-        if i < len(st.session_state.answers) and isinstance(st.session_state.answers[i], dict) and "user_code" in st.session_state.answers[i]:
-            current_solution = st.session_state.answers[i]["user_code"]
+        # Check if previous solutions exist in session state. This is for persistent display.
+        # Note: For coding and essay, st.session_state.answers will typically have just one entry
+        # corresponding to the entire submission, not per question.
+        if st.session_state.answers and len(st.session_state.answers) > 0 and \
+           st.session_state.answers[0].get("type") == "coding_test" and \
+           st.session_state.answers[0].get("problems_solved") and \
+           i < len(st.session_state.answers[0]["problems_solved"]):
+            current_solution = st.session_state.answers[0]["problems_solved"][i]["user_code"]
         
         code = st.text_area(f"Write your code for '{problem['title']}' here:", height=200, key=f"code_{i}_{st.session_state.current_test}", value=current_solution)
 
@@ -994,11 +1013,13 @@ def show_results():
             for i, answer_data in enumerate(st.session_state.answers):
                 st.markdown(f"**Q{i+1}:** {answer_data['question']}")
                 if answer_data.get("is_correct", False):
-                    st.success(f"✅ Your Answer: {answer_data['user_answer']} (Correct)")
-                elif answer_data.get("user_answer") == "Skipped":
-                    st.warning(f"⏭️ You Skipped this question. Correct: {answer_data['correct_answer']}")
+                    st.success(f"✅ Your Answer: {answer_data['user_answer_text']} (Correct)")
+                elif answer_data.get("user_answer_letter") == "Skipped":
+                    st.warning(f"⏭️ You Skipped this question. Correct Answer: {answer_data['correct_answer_text']}")
                 else:
-                    st.error(f"❌ Your Answer: {answer_data['user_answer']} (Incorrect), Correct: {answer_data['correct_answer']}")
+                    st.error(f"❌ Your Answer: {answer_data['user_answer_text']} (Incorrect)")
+                
+                st.markdown(f"**Correct Answer:** {answer_data['correct_answer_text']}")
                 st.info(f"**Explanation:** {answer_data['explanation']}")
                 st.markdown("---")
         else:
@@ -1059,7 +1080,7 @@ def show_practice_mode():
             difficulty_levels = ["Easy", "Medium", "Hard"]
             selected_difficulty_practice = st.selectbox("Select Difficulty Level:", difficulty_levels, key="practice_difficulty_select")
 
-            num_questions = st.slider("Number of Questions:", 1, 15, 5, key="practice_num_questions_slider")
+            num_questions = st.slider("Number of Questions:", 1, 10, 5, key="practice_num_questions_slider")
 
             if st.button("Start Practice Session", key="start_practice_session_btn"):
                 # Clear previous practice state before generating new questions
