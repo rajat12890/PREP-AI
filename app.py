@@ -163,13 +163,14 @@ TEST_CONFIGS = {
 }
 
 # --- Groq API and Question Generation Functions ---
-
 def initialize_groq_client():
-       """Initializes the DeepSeek-R1 LLM client via Hugging Face Inference API."""
+    """Initializes the DeepSeek-R1 LLM client via Hugging Face Inference API."""
+    
     # Get the Hugging Face API token from environment variables
     # Streamlit Cloud secrets are automatically loaded into os.environ
-    hf_api_token = os.getenv("HF_TOKEN") # Using HF_API_TOKEN as set in secrets
-    # Or, if you prefer LangChain's default env var: hf_api_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
+    hf_api_token = os.getenv("HF_TOKEN")  # Using HF_API_TOKEN as set in secrets
+    # Or, if you prefer LangChain's default env var:
+    # hf_api_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
     if not hf_api_token:
         st.error("Hugging Face API token (HF_API_TOKEN) not found. Please add it to your Streamlit Cloud secrets.")
@@ -180,19 +181,19 @@ def initialize_groq_client():
         llm = HuggingFaceEndpoint(
             endpoint_url="https://api-inference.huggingface.co/models/deepseek-ai/DeepSeek-R1",
             huggingfacehub_api_token=hf_api_token,
-            task="text-generation", # Specify the task type
-            temperature=0.3, # Adjust for more deterministic reasoning
-            max_new_tokens=2000, # Allow for detailed responses
+            task="text-generation",  # Specify the task type
+            temperature=0.3,         # Adjust for more deterministic reasoning
+            max_new_tokens=2000,     # Allow for detailed responses
             top_k=50,
             top_p=0.95,
             # Add other parameters as needed by DeepSeek-R1 or for optimal performance
-            # E.g., if DeepSeek-R1 has specific stopping sequences, you might add:
-            # stop_sequences=["<|endoftext|>", "<|im_end|>"]
+            # E.g., stop_sequences=["<|endoftext|>", "<|im_end|>"]
         )
         return llm
     except Exception as e:
         st.error(f"Error initializing Hugging Face Inference API client for DeepSeek-R1: {str(e)}. Please check your API token and network connection.")
         return None
+
 def generate_questions(test_type, topic, count=5, difficulty="Medium"):
     """
     Generates multiple-choice questions using the Groq API.
