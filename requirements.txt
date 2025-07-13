@@ -4,3 +4,6 @@ langchain-groq
 pandas
 plotly
 python-dotenv
+langchain_community
+torch
+transformers
