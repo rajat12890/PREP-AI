@@ -12,10 +12,12 @@ import time
 import re
 import os
 from dotenv import load_dotenv
-
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from langchain_community.llms import HuggingFacePipeline
+import torch
 # Load environment variables
 load_dotenv()
-
+os.environ["HF_TOKEN"] = os.getenv("HF_TOKEN")
 # Configure page
 st.set_page_config(
     page_title="CSE Employability Test Prep",
@@ -163,20 +165,53 @@ TEST_CONFIGS = {
 # --- Groq API and Question Generation Functions ---
 
 def initialize_groq_client():
-    """Initializes the Groq LLM client with the API key."""
-    if st.session_state.groq_api_key:
-        try:
-            llm = ChatGroq(
-                groq_api_key=st.session_state.groq_api_key,
-                model_name="llama3-70b-8192", # A powerful model for better quality responses
-                temperature=0.3, # Lower temperature for more consistent, less creative output
-                max_tokens=2000 # Max tokens for the response
-            )
-            return llm
-        except Exception as e:
-            st.error(f"Error initializing Groq client: {str(e)}. Please check your API key and internet connection.")
-            return None
-    return None
+    """Initializes the microsoft/Phi-4-reasoning LLM client using HuggingFacePipeline."""
+    # Ensure a Hugging Face token is available if the model requires authentication
+    # You might need to run `huggingface-cli login` in your terminal
+    # or set os.environ["HF_TOKEN"] = "hf_YOUR_TOKEN"
+
+    # Define the model ID
+    model_id = "microsoft/Phi-4-reasoning" # Or "microsoft/Phi-4-mini-reasoning" for a smaller, faster version
+
+    if not torch.cuda.is_available():
+        st.error("CUDA (NVIDIA GPU) is not available. Phi-4-reasoning is very large and typically requires a GPU.")
+        st.warning("Falling back to sample questions due to lack of suitable hardware for Phi-4-reasoning.")
+        return None
+
+    try:
+        # Load tokenizer and model
+        # device_map="auto" attempts to load the model across available GPUs/CPU
+        # torch_dtype=torch.bfloat16 (or torch.float16) for memory efficiency
+        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            torch_dtype=torch.bfloat16, # Use bfloat16 for better memory/speed balance
+            device_map="auto", # Automatically maps model to available devices (GPUs first)
+            trust_remote_code=True # Required for Phi models
+        )
+
+        # Create a Hugging Face pipeline
+        # Set parameters appropriate for reasoning (lower temperature, higher max_new_tokens)
+        pipe = pipeline(
+            "text-generation",
+            model=model,
+            tokenizer=tokenizer,
+            max_new_tokens=2000, # Increased for detailed reasoning
+            temperature=0.3,    # Lower temperature for deterministic, logical output
+            do_sample=True,     # Recommended for Phi-4-reasoning
+            top_k=50,           # Recommended for Phi-4-reasoning
+            top_p=0.95,         # Recommended for Phi-4-reasoning
+            pad_token_id=tokenizer.eos_token_id # Set pad_token_id
+        )
+
+        # Wrap the Hugging Face pipeline with LangChain's HuggingFacePipeline
+        llm = HuggingFacePipeline(pipeline=pipe)
+        return llm
+
+    except Exception as e:
+        st.error(f"Error initializing Hugging Face Phi-4-reasoning client: {str(e)}")
+        st.warning("Falling back to sample questions.")
+        return None
 
 def generate_questions(test_type, topic, count=5, difficulty="Medium"):
     """
