@@ -165,54 +165,34 @@ TEST_CONFIGS = {
 # --- Groq API and Question Generation Functions ---
 
 def initialize_groq_client():
-    """Initializes the microsoft/Phi-4-reasoning LLM client using HuggingFacePipeline."""
-    # Ensure a Hugging Face token is available if the model requires authentication
-    # You might need to run `huggingface-cli login` in your terminal
-    # or set os.environ["HF_TOKEN"] = "hf_YOUR_TOKEN"
+       """Initializes the DeepSeek-R1 LLM client via Hugging Face Inference API."""
+    # Get the Hugging Face API token from environment variables
+    # Streamlit Cloud secrets are automatically loaded into os.environ
+    hf_api_token = os.getenv("HF_TOKEN") # Using HF_API_TOKEN as set in secrets
+    # Or, if you prefer LangChain's default env var: hf_api_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
-    # Define the model ID
-    model_id = "microsoft/Phi-4-reasoning" # Or "microsoft/Phi-4-mini-reasoning" for a smaller, faster version
-
-    if not torch.cuda.is_available():
-        st.error("CUDA (NVIDIA GPU) is not available. Phi-4-reasoning is very large and typically requires a GPU.")
-        st.warning("Falling back to sample questions due to lack of suitable hardware for Phi-4-reasoning.")
+    if not hf_api_token:
+        st.error("Hugging Face API token (HF_API_TOKEN) not found. Please add it to your Streamlit Cloud secrets.")
         return None
 
     try:
-        # Load tokenizer and model
-        # device_map="auto" attempts to load the model across available GPUs/CPU
-        # torch_dtype=torch.bfloat16 (or torch.float16) for memory efficiency
-        tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_id,
-            torch_dtype=torch.bfloat16, # Use bfloat16 for better memory/speed balance
-            device_map="auto", # Automatically maps model to available devices (GPUs first)
-            trust_remote_code=True # Required for Phi models
+        # Use HuggingFaceEndpoint for models hosted on Hugging Face's inference API
+        llm = HuggingFaceEndpoint(
+            endpoint_url="https://api-inference.huggingface.co/models/deepseek-ai/DeepSeek-R1",
+            huggingfacehub_api_token=hf_api_token,
+            task="text-generation", # Specify the task type
+            temperature=0.3, # Adjust for more deterministic reasoning
+            max_new_tokens=2000, # Allow for detailed responses
+            top_k=50,
+            top_p=0.95,
+            # Add other parameters as needed by DeepSeek-R1 or for optimal performance
+            # E.g., if DeepSeek-R1 has specific stopping sequences, you might add:
+            # stop_sequences=["<|endoftext|>", "<|im_end|>"]
         )
-
-        # Create a Hugging Face pipeline
-        # Set parameters appropriate for reasoning (lower temperature, higher max_new_tokens)
-        pipe = pipeline(
-            "text-generation",
-            model=model,
-            tokenizer=tokenizer,
-            max_new_tokens=2000, # Increased for detailed reasoning
-            temperature=0.3,    # Lower temperature for deterministic, logical output
-            do_sample=True,     # Recommended for Phi-4-reasoning
-            top_k=50,           # Recommended for Phi-4-reasoning
-            top_p=0.95,         # Recommended for Phi-4-reasoning
-            pad_token_id=tokenizer.eos_token_id # Set pad_token_id
-        )
-
-        # Wrap the Hugging Face pipeline with LangChain's HuggingFacePipeline
-        llm = HuggingFacePipeline(pipeline=pipe)
         return llm
-
     except Exception as e:
-        st.error(f"Error initializing Hugging Face Phi-4-reasoning client: {str(e)}")
-        st.warning("Falling back to sample questions.")
+        st.error(f"Error initializing Hugging Face Inference API client for DeepSeek-R1: {str(e)}. Please check your API token and network connection.")
         return None
-
 def generate_questions(test_type, topic, count=5, difficulty="Medium"):
     """
     Generates multiple-choice questions using the Groq API.
