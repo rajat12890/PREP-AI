@@ -12,13 +12,10 @@ import time
 import re
 import os
 from dotenv import load_dotenv
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-from langchain_community.llms import HuggingFacePipeline
-import torch
-from langchain_huggingface import HuggingFaceEndpoint
+
 # Load environment variables
 load_dotenv()
-os.environ["HF_TOKEN"] = os.getenv("HF_TOKEN")
+
 # Configure page
 st.set_page_config(
     page_title="CSE Employability Test Prep",
@@ -164,37 +161,22 @@ TEST_CONFIGS = {
 }
 
 # --- Groq API and Question Generation Functions ---
-def initialize_groq_client():  # Consider renaming to initialize_deepseek_client
-    """Initializes the DeepSeek-R1 LLM client via Hugging Face Inference API."""
-    
-    # Get the Hugging Face API token from environment variables
-    # Streamlit Cloud secrets are automatically loaded into os.environ
-    hf_api_token = os.getenv("HF_TOKEN")  # Make sure this matches your secret name
-    
-    if not hf_api_token:
-        st.error("Hugging Face API token (HF_TOKEN) not found. Please add it to your Streamlit Cloud secrets.")
-        return None
-    
-    try:
-        # Use HuggingFaceEndpoint for models hosted on Hugging Face's inference API
-        llm = HuggingFaceEndpoint(
-            repo_id="deepseek-ai/DeepSeek-R1",  # Use repo_id instead of endpoint_url
-            huggingfacehub_api_token=hf_api_token,
-            task="text-generation",
-            model_kwargs={
-                "temperature": 0.3,
-                "max_new_tokens": 2000,
-                "top_k": 50,
-                "top_p": 0.95,
-                "do_sample": True,
-                # Add stop sequences if needed
-                # "stop": ["<|endoftext|>", "<|im_end|>"]
-            }
-        )
-        return llm
-    except Exception as e:
-        st.error(f"Error initializing Hugging Face Inference API client for DeepSeek-R1: {str(e)}. Please check your API token and model availability.")
-        return None
+
+def initialize_groq_client():
+    """Initializes the Groq LLM client with the API key."""
+    if st.session_state.groq_api_key:
+        try:
+            llm = ChatGroq(
+                groq_api_key=st.session_state.groq_api_key,
+                model_name="llama-3.3-70b-versatile", # A powerful model for better quality responses
+                temperature=0.1, # Lower temperature for more consistent, less creative output
+                max_tokens=4000 # Max tokens for the response
+            )
+            return llm
+        except Exception as e:
+            st.error(f"Error initializing Groq client: {str(e)}. Please check your API key and internet connection.")
+            return None
+    return None
 
 def generate_questions(test_type, topic, count=5, difficulty="Medium"):
     """
@@ -204,7 +186,6 @@ def generate_questions(test_type, topic, count=5, difficulty="Medium"):
     llm = initialize_groq_client()
     if not llm:
         st.warning(f"Using sample questions for {test_type} - {topic} ({difficulty}). Groq API key is missing or invalid.")
-        print(f"[Warning] {error_msg}")
         return create_sample_questions(test_type, topic, count, difficulty)
 
     # Define prompt templates based on test type for tailored question generation
@@ -246,7 +227,19 @@ def generate_questions(test_type, topic, count=5, difficulty="Medium"):
             - Ensure questions are unique and do not repeat previous questions within the generated set."""
     elif test_type == "Quantitative Ability Test":
         prompt_template = base_prompt_template + \
-            "\nInclude numerical problems with clear mathematical solutions."
+            """
+            \nInclude numerical problems with clear mathematical solutions.
+            **Ensure the correct answer is always present and clearly identifiable among the options.**
+            Focus on problems involving logical reasoning with numbers, percentages, ratios, time & work, profit & loss, basic algebra, and data interpretation.
+            Avoid overly complex calculations; emphasize conceptual understanding and problem-solving approach.
+            Example for Quantitative Ability Test:
+            {{
+                "question": "A person invests ₹1500 in a scheme that offers 10% interest per annum compounded annually. What will be the amount after 2 years?",
+                "options": ["A) ₹1750", "B) ₹1800", "C) ₹1815", "D) ₹1850"],
+                "correct_answer": "C",
+                "explanation": "Amount = P * (1 + R/100)^T = 1500 * (1 + 10/100)^2 = 1500 * (1.1)^2 = 1500 * 1.21 = ₹1815."
+            }}
+            """
     elif test_type == "Domain Test (DSA)":
         prompt_template = base_prompt_template + \
             "\nFocus on practical DSA concepts and implementation."
