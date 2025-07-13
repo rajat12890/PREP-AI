@@ -204,6 +204,7 @@ def generate_questions(test_type, topic, count=5, difficulty="Medium"):
     llm = initialize_groq_client()
     if not llm:
         st.warning(f"Using sample questions for {test_type} - {topic} ({difficulty}). Groq API key is missing or invalid.")
+         print(f"[Warning] {error_msg}")
         return create_sample_questions(test_type, topic, count, difficulty)
 
     # Define prompt templates based on test type for tailored question generation
