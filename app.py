@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from langchain_community.llms import HuggingFacePipeline
 import torch
+from langchain_huggingface import HuggingFaceEndpoint
 # Load environment variables
 load_dotenv()
 os.environ["HF_TOKEN"] = os.getenv("HF_TOKEN")
@@ -163,35 +164,36 @@ TEST_CONFIGS = {
 }
 
 # --- Groq API and Question Generation Functions ---
-def initialize_groq_client():
+def initialize_groq_client():  # Consider renaming to initialize_deepseek_client
     """Initializes the DeepSeek-R1 LLM client via Hugging Face Inference API."""
     
     # Get the Hugging Face API token from environment variables
     # Streamlit Cloud secrets are automatically loaded into os.environ
-    hf_api_token = os.getenv("HF_TOKEN")  # Using HF_API_TOKEN as set in secrets
-    # Or, if you prefer LangChain's default env var:
-    # hf_api_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
-
+    hf_api_token = os.getenv("HF_TOKEN")  # Make sure this matches your secret name
+    
     if not hf_api_token:
-        st.error("Hugging Face API token (HF_API_TOKEN) not found. Please add it to your Streamlit Cloud secrets.")
+        st.error("Hugging Face API token (HF_TOKEN) not found. Please add it to your Streamlit Cloud secrets.")
         return None
-
+    
     try:
         # Use HuggingFaceEndpoint for models hosted on Hugging Face's inference API
         llm = HuggingFaceEndpoint(
-            endpoint_url="https://api-inference.huggingface.co/models/deepseek-ai/DeepSeek-R1",
+            repo_id="deepseek-ai/DeepSeek-R1",  # Use repo_id instead of endpoint_url
             huggingfacehub_api_token=hf_api_token,
-            task="text-generation",  # Specify the task type
-            temperature=0.3,         # Adjust for more deterministic reasoning
-            max_new_tokens=2000,     # Allow for detailed responses
-            top_k=50,
-            top_p=0.95,
-            # Add other parameters as needed by DeepSeek-R1 or for optimal performance
-            # E.g., stop_sequences=["<|endoftext|>", "<|im_end|>"]
+            task="text-generation",
+            model_kwargs={
+                "temperature": 0.3,
+                "max_new_tokens": 2000,
+                "top_k": 50,
+                "top_p": 0.95,
+                "do_sample": True,
+                # Add stop sequences if needed
+                # "stop": ["<|endoftext|>", "<|im_end|>"]
+            }
         )
         return llm
     except Exception as e:
-        st.error(f"Error initializing Hugging Face Inference API client for DeepSeek-R1: {str(e)}. Please check your API token and network connection.")
+        st.error(f"Error initializing Hugging Face Inference API client for DeepSeek-R1: {str(e)}. Please check your API token and model availability.")
         return None
 
 def generate_questions(test_type, topic, count=5, difficulty="Medium"):
