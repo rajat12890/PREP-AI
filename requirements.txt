@@ -7,3 +7,4 @@ python-dotenv
 langchain_community
 torch
 transformers
+langchain_huggingface
